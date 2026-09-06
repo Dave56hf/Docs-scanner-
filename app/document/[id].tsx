@@ -171,9 +171,15 @@ export default function DocumentScreen() {
 
       <ActionSheet
         visible={exportSheet}
-        title="Export"
+        title="Document actions"
         onClose={() => setExportSheet(false)}
         actions={[
+          {
+            icon: 'text-outline',
+            label: 'Extract text',
+            hint: 'Read the words on these pages',
+            onPress: () => router.push(`/text/${document.id}`),
+          },
           {
             icon: 'print-outline',
             label: 'Print',
@@ -204,6 +210,12 @@ export default function DocumentScreen() {
                   label: 'Edit page',
                   hint: filterLabel(menuPage.filter),
                   onPress: () => router.push(`/page/${document.id}/${menuPage.id}`),
+                },
+                {
+                  icon: 'create-outline',
+                  label: 'Sign this page',
+                  hint: 'Draw on the page with your finger',
+                  onPress: () => router.push(`/sign/${document.id}/${menuPage.id}`),
                 },
                 {
                   icon: 'arrow-up',

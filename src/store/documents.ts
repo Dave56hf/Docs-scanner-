@@ -5,6 +5,7 @@ import { createJSONStorage, persist } from 'zustand/middleware';
 import {
   pruneOrphans,
   removeDocumentDir,
+  removeFile,
   removePage,
   removeRendered,
 } from '@/lib/files';
@@ -26,6 +27,20 @@ type DocumentsState = {
 
   deletePage: (documentId: string, pageId: string) => void;
   movePage: (documentId: string, from: number, to: number) => void;
+  /**
+   * Replaces a page's master with a flattened, signed version. The previous
+   * master and any derived render are deleted, and the page resets to an
+   * unfiltered, unrotated state because those looks are now baked in.
+   */
+  applySignature: (
+    documentId: string,
+    pageId: string,
+    next: { uri: string; width: number; height: number; revision: number }
+  ) => void;
+
+  /** Caches OCR output so re-opening the text view doesn't re-run recognition. */
+  setPageTexts: (documentId: string, texts: { pageId: string; text: string }[]) => void;
+
   /**
    * Records the result of a re-render. `uri` is the new rendered file, or the
    * page's own `sourceUri` when the edit resolved back to the untouched image.
@@ -152,6 +167,53 @@ export const useDocuments = create<DocumentsState>()(
           }),
         })),
 
+      applySignature: (documentId, pageId, next) => {
+        const document = get().documents.find((entry) => entry.id === documentId);
+        const previous = document?.pages.find((entry) => entry.id === pageId);
+        if (previous) {
+          removeRendered(previous);
+          removeFile(previous.sourceUri);
+        }
+
+        set((state) => ({
+          documents: withDocument(state.documents, documentId, (entry) => ({
+            ...entry,
+            pages: entry.pages.map((page) =>
+              page.id === pageId
+                ? {
+                    ...page,
+                    sourceUri: next.uri,
+                    uri: next.uri,
+                    width: next.width,
+                    height: next.height,
+                    revision: next.revision,
+                    filter: 'original' as const,
+                    rotation: 0 as const,
+                    text: undefined,
+                  }
+                : page
+            ),
+          })),
+        }));
+      },
+
+      setPageTexts: (documentId, texts) =>
+        // Deliberately not routed through `withDocument`: reading a document's
+        // text is not editing it, so `updatedAt` must not move and re-sort the
+        // library under the user.
+        set((state) => ({
+          documents: state.documents.map((document) => {
+            if (document.id !== documentId) return document;
+            const byId = new Map(texts.map((entry) => [entry.pageId, entry.text]));
+            return {
+              ...document,
+              pages: document.pages.map((page) =>
+                byId.has(page.id) ? { ...page, text: byId.get(page.id) } : page
+              ),
+            };
+          }),
+        })),
+
       applyRender: (documentId, pageId, next) => {
         const document = get().documents.find((entry) => entry.id === documentId);
         const previous = document?.pages.find((entry) => entry.id === pageId);
@@ -160,7 +222,10 @@ export const useDocuments = create<DocumentsState>()(
         set((state) => ({
           documents: withDocument(state.documents, documentId, (entry) => ({
             ...entry,
-            pages: entry.pages.map((page) => (page.id === pageId ? { ...page, ...next } : page)),
+            // The pixels changed, so any cached OCR for this page is stale.
+            pages: entry.pages.map((page) =>
+              page.id === pageId ? { ...page, ...next, text: undefined } : page
+            ),
           })),
         }));
       },

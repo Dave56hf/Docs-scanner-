@@ -55,6 +55,25 @@ export function writeRendered(
   return file.uri;
 }
 
+/**
+ * Writes a new master capture. Signing replaces the master rather than adding
+ * another derived layer, because a signature is part of the document — not a
+ * setting you toggle. The revision keeps the filename distinct from the old
+ * master so the image cache serves the new pixels.
+ */
+export function writeMaster(
+  documentId: string,
+  pageId: string,
+  revision: number,
+  base64: string
+): string {
+  const dir = ensureDir(documentDir(documentId));
+  const file = new File(dir, `${pageId}-m${revision}.jpg`);
+  file.create({ overwrite: true, intermediates: true });
+  file.write(base64, { encoding: 'base64' });
+  return file.uri;
+}
+
 /** Best-effort delete — a missing file is the desired end state either way. */
 export function removeFile(uri: string | undefined): void {
   if (!uri) return;

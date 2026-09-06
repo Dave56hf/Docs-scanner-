@@ -10,6 +10,7 @@ import { Screen } from '@/components/Screen';
 import { ActionSheet, type SheetAction } from '@/components/Sheet';
 import { FILTERS, filterLabel } from '@/lib/filters';
 import { formatBytes, usedBytes } from '@/lib/files';
+import { isOcrAvailable } from '@/lib/ocr';
 import { isNativeScannerAvailable } from '@/lib/scanner';
 import type { FilterId, PageSize } from '@/lib/types';
 import { useDocuments } from '@/store/documents';
@@ -110,6 +111,11 @@ export default function SettingsScreen() {
             icon={isNativeScannerAvailable() ? 'scan-outline' : 'warning-outline'}
             label="Edge detection"
             value={isNativeScannerAvailable() ? 'Available' : 'Camera only'}
+          />
+          <Row
+            icon={isOcrAvailable() ? 'text-outline' : 'warning-outline'}
+            label="Text recognition"
+            value={isOcrAvailable() ? 'Available' : 'Unavailable'}
           />
         </Section>
 

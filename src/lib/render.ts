@@ -7,7 +7,7 @@ import type { FilterId, Rotation } from './types';
  * Long edge of a rendered page. Big enough that 10pt text stays legible in the
  * exported PDF, small enough that a 30-page document doesn't exhaust memory.
  */
-const MAX_EDGE = 2400;
+export const MAX_EDGE = 2400;
 const JPEG_QUALITY = 92;
 
 export type RenderResult = { base64: string; width: number; height: number };

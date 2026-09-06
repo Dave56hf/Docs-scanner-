@@ -21,6 +21,11 @@ export type Page = {
   rotation: Rotation;
   /** Bumped on every re-render so the new file gets a URI the image cache hasn't seen. */
   revision: number;
+  /**
+   * Cached OCR output for this page. `undefined` means "never scanned";
+   * an empty string means "scanned, and there was no text".
+   */
+  text?: string;
 };
 
 export type ScanDocument = {

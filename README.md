@@ -16,6 +16,7 @@ no account, no server, and no upload.
   (Expo Go), so the app is still usable while you develop.
 
 **Editing**
+- Sign a page by drawing on it with a finger — three ink colours, three pen widths, undo and clear.
 - Five filters — Original, Enhance, Grayscale, B & W, Invert — applied through Skia colour matrices
   with a live preview.
 - 90° rotation in either direction.
@@ -26,6 +27,10 @@ no account, no server, and no upload.
 - Library with search, and sorting by last modified, oldest, or name.
 - Rename documents; long-press to multi-select and bulk delete.
 - Reorder, edit, or delete individual pages.
+
+**Reading**
+- On-device OCR (ML Kit on Android, Apple Vision on iOS) extracts the text from a document; results
+  are cached per page and copy to the clipboard in one tap.
 
 **Exporting**
 - Multi-page PDF at A4, US Letter, or sized to fit the scan.
@@ -64,15 +69,37 @@ If you only have Expo Go available, the app still runs: scanning falls back to t
 you lose automatic edge detection. Settings → *On this device* → *Edge detection* tells you which
 mode you're in.
 
-### Cloud builds
+### Cloud builds (no Android Studio or Xcode needed)
+
+EAS Build compiles the app on Expo's servers and hands you back an installable file. You need a free
+Expo account; the build itself runs in the cloud.
+
+```bash
+# 1. Sign in (creates an account if you don't have one)
+npx eas-cli@latest login
+
+# 2. Link this checkout to an EAS project. This writes an `extra.eas.projectId`
+#    into app.json — commit that change.
+npx eas-cli@latest init
+
+# 3. Build an installable APK
+npm run build:android
+```
+
+When the build finishes, EAS gives you a URL and a QR code. Open it on your phone to install the
+APK directly — no cable, no Android Studio. Signing keys are generated and stored by EAS on first
+build; just accept the prompts.
 
 `eas.json` defines three profiles:
 
-```bash
-eas build --profile development --platform android   # dev client, APK
-eas build --profile preview --platform android       # installable APK for testers
-eas build --profile production --platform android    # AAB for the Play Store
-```
+| Profile | Output | Use it for |
+| --- | --- | --- |
+| `development` | APK with the dev client | Iterating with Metro over the network |
+| `preview` | Standalone APK | Handing a build to yourself or a tester |
+| `production` | AAB | Uploading to the Play Store |
+
+Swap `--platform android` for `--platform ios` on any of them. iOS builds need a paid Apple Developer
+account to install on a physical device.
 
 ## Project layout
 
@@ -82,6 +109,8 @@ app/                                  Expo Router routes
   index.tsx                           Library: search, sort, multi-select, scan
   document/[id].tsx                   One document: page grid, export, add pages
   page/[documentId]/[pageId].tsx      Page editor: filters, rotation, preview
+  sign/[documentId]/[pageId].tsx      Draw a signature onto a page
+  text/[id].tsx                       OCR results: read, copy
   settings.tsx                        Preferences and on-device storage stats
 
 src/
@@ -90,6 +119,9 @@ src/
     files.ts        Ownership of files on disk, plus orphan cleanup
     ingest.ts       Capture URIs -> owned, rendered pages
     scanner.ts      Native scanner wrapper with camera/gallery fallbacks
+    ocr.ts          On-device text recognition, with per-platform URI handling
+    strokes.ts      Signature stroke smoothing and path building
+    annotate.ts     Burns signature strokes into the page image
     filters.ts      Colour matrices and how they compose
     render.ts       Offscreen Skia render: filter + rotation -> JPEG
     export.ts       PDF generation, sharing, printing, gallery export
@@ -118,6 +150,17 @@ URI the image cache has never seen, which is what makes an edit show up immediat
 render is deleted as soon as the new one is recorded, and any document folder with no matching entry
 in the store is cleaned up on launch.
 
+## How signing works
+
+Signing is destructive on purpose. When you apply a signature, the current look of the page — filter,
+rotation and all — is flattened together with your strokes into a **new master image**, replacing the
+old one. The page then resets to unfiltered and unrotated, because those looks are now part of the
+pixels.
+
+This means a signature cannot be filtered off or undone later, which matches what people expect from
+signing a document. It also keeps the rendering pipeline simple: there is no separate annotation layer
+to keep in register through later rotations.
+
 ## Notes and limitations
 
 - **Filters are global, not adaptive.** B & W uses a single luma threshold across the whole page
@@ -127,7 +170,11 @@ in the store is cleaned up on launch.
   orientations in one document are better served by A4 or US Letter, which letterbox each page.
 - **PDF generation holds the pages in memory** as base64 while building the HTML. Very large
   documents (many dozens of high-resolution pages) will be memory-hungry.
-- **No OCR.** Exported PDFs are image-only and not text-searchable.
+- **OCR is read-only.** Text is extracted for reading and copying; exported PDFs are still image-only
+  and not text-searchable. Accuracy depends heavily on scan quality.
+- **OCR recognises Latin script.** Both platform engines default to Latin; other scripts would need a
+  different recogniser.
+- **Signatures are flattened, not undoable** — see "How signing works" above.
 - Rendered pages are capped at 2400px on the long edge, which keeps small print legible while
   bounding memory use.
 
@@ -140,3 +187,6 @@ in the store is cleaned up on launch.
 | `npm run typecheck` | `tsc --noEmit` |
 | `npm run lint` | ESLint |
 | `npm run prebuild` | Regenerate `android/` and `ios/` from the config |
+| `npm run build:android` | Cloud-build an installable APK via EAS |
+| `npm run build:android:dev` | Cloud-build a development client |
+| `npm run build:ios` | Cloud-build for iOS via EAS |

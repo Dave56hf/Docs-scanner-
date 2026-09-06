@@ -128,11 +128,20 @@ export default function PageEditorScreen() {
         subtitle={document.name}
         onBack={() => router.back()}
         right={
-          <AppBarAction
-            icon="share-outline"
-            label="Share this page"
-            onPress={() => run('Preparing…', () => shareImage(page.uri, `Share page ${pageNumber}`))}
-          />
+          <>
+            <AppBarAction
+              icon="create-outline"
+              label="Sign this page"
+              onPress={() => router.push(`/sign/${document.id}/${page.id}`)}
+            />
+            <AppBarAction
+              icon="share-outline"
+              label="Share this page"
+              onPress={() =>
+                run('Preparing…', () => shareImage(page.uri, `Share page ${pageNumber}`))
+              }
+            />
+          </>
         }
       />
 
