@@ -1,0 +1,97 @@
+{
+  "expo": {
+    "name": "Scanly",
+    "slug": "scanly",
+    "description": "Scan documents to PDF \u2014 fast, offline, and free.",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "scheme": "scanly",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.scanly.docscanner",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Scanly uses the camera to scan documents.",
+        "NSPhotoLibraryUsageDescription": "Scanly needs access to your photos so you can turn existing images into scans.",
+        "NSPhotoLibraryAddUsageDescription": "Scanly saves exported scans to your photo library.",
+        "UIFileSharingEnabled": true,
+        "LSSupportsOpeningDocumentsInPlace": true
+      }
+    },
+    "android": {
+      "package": "com.scanly.docscanner",
+      "predictiveBackGestureEnabled": false,
+      "adaptiveIcon": {
+        "backgroundColor": "#0B78F0",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.READ_MEDIA_IMAGES"
+      ],
+      "blockedPermissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.READ_MEDIA_AUDIO",
+        "android.permission.READ_MEDIA_VIDEO"
+      ]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "react-native-document-scanner-plugin",
+        {
+          "cameraPermission": "Scanly uses the camera to scan your documents."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Scanly needs access to your photos so you can turn existing images into scans.",
+          "cameraPermission": "Scanly uses the camera to scan your documents.",
+          "microphonePermission": false
+        }
+      ],
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "Scanly needs access to your photos so you can turn existing images into scans.",
+          "savePhotosPermission": "Scanly saves exported scans to your photo library.",
+          "isAccessMediaLocationEnabled": false
+        }
+      ],
+      [
+        "expo-file-system",
+        {
+          "supportsOpeningDocumentsInPlace": true,
+          "enableFileSharing": true
+        }
+      ],
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 180,
+          "resizeMode": "contain",
+          "backgroundColor": "#0B78F0",
+          "dark": {
+            "backgroundColor": "#0A1220"
+          }
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": false
+    }
+  }
+}
