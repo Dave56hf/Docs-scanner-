@@ -161,6 +161,19 @@ This means a signature cannot be filtered off or undone later, which matches wha
 signing a document. It also keeps the rendering pipeline simple: there is no separate annotation layer
 to keep in register through later rotations.
 
+## Running in a browser
+
+`npm run web` renders the app through React Native for Web. This is a **layout preview only** — it is
+useful for checking screens and themes without a device, and nothing more:
+
+- Scanning, OCR and saving to the photo library are native modules with no web implementation. The
+  app detects this and degrades (Settings reports "Camera only" and "Unavailable") rather than
+  crashing.
+- The page editor and signing screen need Skia's CanvasKit, which this build does not initialise for
+  web, so those two screens will not render there.
+
+Treat the browser as a design tool. Anything you actually want to verify needs a device build.
+
 ## Notes and limitations
 
 - **Filters are global, not adaptive.** B & W uses a single luma threshold across the whole page

@@ -72,27 +72,7 @@ export default function DocumentScreen() {
         )}`}
         onBack={() => router.back()}
         right={
-          <>
-            <AppBarAction icon="create-outline" label="Rename" onPress={() => setRenaming(true)} />
-            <AppBarAction
-              icon="trash-outline"
-              label="Delete document"
-              tint={theme.danger}
-              onPress={() =>
-                Alert.alert(`Delete “${document.name}”?`, 'This cannot be undone.', [
-                  { text: 'Cancel', style: 'cancel' },
-                  {
-                    text: 'Delete',
-                    style: 'destructive',
-                    onPress: () => {
-                      router.back();
-                      deleteDocument(document.id);
-                    },
-                  },
-                ])
-              }
-            />
-          </>
+          <AppBarAction icon="create-outline" label="Rename" onPress={() => setRenaming(true)} />
         }
       />
 
@@ -195,6 +175,23 @@ export default function DocumentScreen() {
                 Alert.alert('Saved', `${count} image${count === 1 ? '' : 's'} added to your photos.`);
               }),
           },
+          {
+            icon: 'trash-outline',
+            label: 'Delete document',
+            destructive: true,
+            onPress: () =>
+              Alert.alert(`Delete “${document.name}”?`, 'This cannot be undone.', [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                  text: 'Delete',
+                  style: 'destructive',
+                  onPress: () => {
+                    router.back();
+                    deleteDocument(document.id);
+                  },
+                },
+              ]),
+          },
         ]}
       />
 
@@ -217,16 +214,26 @@ export default function DocumentScreen() {
                   hint: 'Draw on the page with your finger',
                   onPress: () => router.push(`/sign/${document.id}/${menuPage.id}`),
                 },
-                {
-                  icon: 'arrow-up',
-                  label: 'Move up',
-                  onPress: () => movePage(document.id, pageIndex, pageIndex - 1),
-                },
-                {
-                  icon: 'arrow-down',
-                  label: 'Move down',
-                  onPress: () => movePage(document.id, pageIndex, pageIndex + 1),
-                },
+                // A move with nowhere to go is a dead menu row, so the first
+                // and last pages simply don't offer that direction.
+                ...(pageIndex > 0
+                  ? [
+                      {
+                        icon: 'arrow-up' as const,
+                        label: 'Move up',
+                        onPress: () => movePage(document.id, pageIndex, pageIndex - 1),
+                      },
+                    ]
+                  : []),
+                ...(pageIndex < document.pages.length - 1
+                  ? [
+                      {
+                        icon: 'arrow-down' as const,
+                        label: 'Move down',
+                        onPress: () => movePage(document.id, pageIndex, pageIndex + 1),
+                      },
+                    ]
+                  : []),
                 {
                   icon: 'trash-outline',
                   label: 'Delete page',

@@ -1,5 +1,4 @@
 import { Directory, File, Paths } from 'expo-file-system';
-import * as MediaLibrary from 'expo-media-library';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 
@@ -113,8 +112,25 @@ export async function shareImage(uri: string, dialogTitle: string): Promise<void
   await share(uri, 'image/jpeg', 'public.jpeg', dialogTitle);
 }
 
+type MediaLibraryModule = typeof import('expo-media-library');
+
+/**
+ * Resolved on demand. The module has no implementation outside Android and iOS
+ * and throws the moment it is imported, which would take down every screen that
+ * merely wants to share a PDF.
+ */
+function mediaLibrary(): MediaLibraryModule {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    return require('expo-media-library') as MediaLibraryModule;
+  } catch {
+    throw new Error('Saving to the photo library is not supported here.');
+  }
+}
+
 /** Writes every page into the device gallery as a JPEG. */
 export async function saveToGallery(document: ScanDocument): Promise<number> {
+  const MediaLibrary = mediaLibrary();
   const permission = await MediaLibrary.requestPermissionsAsync();
   if (!permission.granted) {
     throw new Error('Scanly needs photo library access to save images.');
