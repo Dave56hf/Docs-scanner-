@@ -147,22 +147,28 @@ export default function PageEditorScreen() {
 
       <View style={[styles.stage, { backgroundColor: theme.canvas }]} onLayout={onLayout}>
         {image ? (
-          <Canvas
+          // The rotation lives on a plain View, not on the Canvas: a Skia
+          // canvas does not reliably apply a transform passed through its own
+          // style, which silently leaves the preview upright while the rest of
+          // the screen reports it as rotated.
+          <View
             style={{
               width: preview.width,
               height: preview.height,
               transform: [{ rotate: `${rotation}deg` }],
             }}>
-            <SkiaImage
-              image={image}
-              x={0}
-              y={0}
-              width={preview.width}
-              height={preview.height}
-              fit="contain">
-              <ColorMatrix matrix={FILTER_MATRICES[filter]} />
-            </SkiaImage>
-          </Canvas>
+            <Canvas style={{ width: preview.width, height: preview.height }}>
+              <SkiaImage
+                image={image}
+                x={0}
+                y={0}
+                width={preview.width}
+                height={preview.height}
+                fit="contain">
+                <ColorMatrix matrix={FILTER_MATRICES[filter]} />
+              </SkiaImage>
+            </Canvas>
+          </View>
         ) : (
           <ActivityIndicator color={theme.accent} />
         )}

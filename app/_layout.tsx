@@ -4,6 +4,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { LockGate } from '@/components/LockGate';
+import { SkiaReady } from '@/components/SkiaReady';
 import { ThemeProvider, useTheme } from '@/theme';
 
 function Navigator() {
@@ -27,9 +28,11 @@ export default function RootLayout() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         <ThemeProvider>
-          <LockGate>
-            <Navigator />
-          </LockGate>
+          <SkiaReady>
+            <LockGate>
+              <Navigator />
+            </LockGate>
+          </SkiaReady>
         </ThemeProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>

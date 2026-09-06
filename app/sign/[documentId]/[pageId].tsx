@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Canvas, Path } from '@shopify/react-native-skia';
 import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import {
   StyleSheet,
   Text,
@@ -57,6 +57,17 @@ export default function SignScreen() {
   // React re-renders, and each one needs the previous point, not a stale render's.
   const current = useRef<Point[]>([]);
 
+  // Window position of the drawing surface, used to convert page coordinates
+  // when the responder event does not carry view-relative ones.
+  const surface = useRef<View | null>(null);
+  const origin = useRef({ x: 0, y: 0 });
+
+  const measure = useCallback(() => {
+    surface.current?.measureInWindow((x, y) => {
+      origin.current = { x, y };
+    });
+  }, []);
+
   // The page is displayed at its natural aspect, letterboxed inside the stage.
   const display = useMemo(() => {
     if (!page || box.width <= 0 || box.height <= 0) return { width: 0, height: 0 };
@@ -74,8 +85,15 @@ export default function SignScreen() {
   }
 
   const addPoint = (event: GestureResponderEvent) => {
-    const { locationX, locationY } = event.nativeEvent;
-    const point = { x: locationX, y: locationY };
+    const { locationX, locationY, pageX, pageY } = event.nativeEvent;
+    // `locationX`/`locationY` are view-relative and are what React Native
+    // provides, but they are not populated on every platform. Falling back to
+    // page coordinates minus the surface origin keeps a stroke from silently
+    // landing at NaN and drawing nothing.
+    const point = Number.isFinite(locationX) && Number.isFinite(locationY)
+      ? { x: locationX, y: locationY }
+      : { x: pageX - origin.current.x, y: pageY - origin.current.y };
+    if (!Number.isFinite(point.x) || !Number.isFinite(point.y)) return;
     const points = current.current;
     const last = points[points.length - 1];
     if (last && distance(last, point) < MIN_POINT_DISTANCE) return;
@@ -84,11 +102,16 @@ export default function SignScreen() {
   };
 
   const endStroke = () => {
-    if (current.current.length > 0) {
-      setStrokes((previous) => [...previous, { points: current.current, color, width }]);
-    }
+    // Read the ref out *before* queueing the update. React runs the updater
+    // later, and by then the ref has already been reset — capturing it inside
+    // the closure stores every stroke with an empty point list, which reads as
+    // "there is ink" while drawing nothing.
+    const points = current.current;
     current.current = [];
     setActive([]);
+    if (points.length > 0) {
+      setStrokes((previous) => [...previous, { points, color, width }]);
+    }
   };
 
   const undo = () => setStrokes((previous) => previous.slice(0, -1));
@@ -120,10 +143,24 @@ export default function SignScreen() {
           setBox({ width: w - space.lg * 2, height: h - space.lg * 2 });
         }}>
         {display.width > 0 && (
-          <View style={{ width: display.width, height: display.height }}>
+          <View
+            ref={surface}
+            onLayout={measure}
+            style={{ width: display.width, height: display.height }}>
             <Image source={{ uri: page.uri }} style={styles.fill} contentFit="contain" />
 
-            <Canvas style={[styles.fill, styles.overlay]}>
+            {/*
+              * Concrete numbers, not a style array: a Skia canvas needs real
+              * dimensions, and passing it an array of styles breaks it on web.
+              */}
+            <Canvas
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                width: display.width,
+                height: display.height,
+              }}>
               {strokes.map((stroke, index) => (
                 <Path
                   key={index}
