@@ -24,6 +24,8 @@ export function DocumentCard({
   document,
   selected,
   selectionMode,
+  match,
+  folderName,
   onPress,
   onLongPress,
   onMore,
@@ -31,6 +33,9 @@ export function DocumentCard({
   document: ScanDocument;
   selected: boolean;
   selectionMode: boolean;
+  /** Set when the document matched on its recognised text rather than its name. */
+  match?: { pageNumber: number; snippet: string };
+  folderName?: string;
   onPress: () => void;
   onLongPress: () => void;
   onMore: () => void;
@@ -73,7 +78,13 @@ export function DocumentCard({
         </Text>
         <Text style={[font.caption, { color: theme.textMuted }]}>
           {pageCount} page{pageCount === 1 ? '' : 's'} · {relativeDate(document.updatedAt)}
+          {folderName ? ` · ${folderName}` : ''}
         </Text>
+        {match && (
+          <Text numberOfLines={2} style={[font.caption, styles.snippet, { color: theme.accent }]}>
+            <Ionicons name="text" size={11} /> p{match.pageNumber}: {match.snippet}
+          </Text>
+        )}
       </View>
 
       {selectionMode ? (
@@ -125,5 +136,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   meta: { flex: 1, gap: 3 },
+  snippet: { lineHeight: 16 },
   more: { padding: space.xs },
 });

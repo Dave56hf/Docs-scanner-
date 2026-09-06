@@ -101,6 +101,47 @@ export async function renderFromUri(
   return renderImage(image, filter, rotation);
 }
 
+/**
+ * Re-encodes an image at a bounded resolution and JPEG quality. Used by PDF
+ * export so the user can trade sharpness for a file that actually sends.
+ */
+export async function renderAtQuality(
+  uri: string,
+  maxEdge: number,
+  quality: number
+): Promise<RenderResult> {
+  const image = await loadImage(uri);
+  const sourceWidth = image.width();
+  const sourceHeight = image.height();
+
+  const scale = Math.min(1, maxEdge / Math.max(sourceWidth, sourceHeight));
+  const outWidth = Math.max(1, Math.round(sourceWidth * scale));
+  const outHeight = Math.max(1, Math.round(sourceHeight * scale));
+
+  const surface = Skia.Surface.MakeOffscreen(outWidth, outHeight);
+  if (!surface) {
+    throw new Error('Not enough memory to prepare this page for export.');
+  }
+
+  const paint = Skia.Paint();
+  paint.setAntiAlias(true);
+  surface
+    .getCanvas()
+    .drawImageRect(
+      image,
+      Skia.XYWHRect(0, 0, sourceWidth, sourceHeight),
+      Skia.XYWHRect(0, 0, outWidth, outHeight),
+      paint
+    );
+  surface.flush();
+
+  return {
+    base64: surface.makeImageSnapshot().encodeToBase64(ImageFormat.JPEG, quality),
+    width: outWidth,
+    height: outHeight,
+  };
+}
+
 /** Reads an image's intrinsic size without keeping the decoded bitmap around. */
 export async function measureImage(uri: string): Promise<{ width: number; height: number }> {
   const image = await loadImage(uri);

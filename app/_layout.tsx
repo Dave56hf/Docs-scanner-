@@ -3,6 +3,7 @@ import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
+import { LockGate } from '@/components/LockGate';
 import { ThemeProvider, useTheme } from '@/theme';
 
 function Navigator() {
@@ -26,7 +27,9 @@ export default function RootLayout() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         <ThemeProvider>
-          <Navigator />
+          <LockGate>
+            <Navigator />
+          </LockGate>
         </ThemeProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>

@@ -8,6 +8,7 @@ no account, no server, and no upload.
 ## Features
 
 **Scanning**
+- **ID card mode** — front and back laid out on one printable page.
 - Native document scanner with live edge detection and perspective correction — Google ML Kit on
   Android, VisionKit on iOS.
 - Multi-page capture in a single session, plus "Add pages" to extend an existing document later.
@@ -24,8 +25,14 @@ no account, no server, and no upload.
   that master, so filters never compound and quality never degrades across edits.
 
 **Organising**
-- Library with search, and sorting by last modified, oldest, or name.
-- Rename documents; long-press to multi-select and bulk delete.
+- **Search inside your documents**, not just their names — every scan is read on
+  capture, so "croissant" finds the receipt you took in March. Matches show the page
+  number and a snippet.
+- **Folders**, with counts, an Unfiled view, and move from single or multi-select.
+- **Documents are named after their own heading** rather than a timestamp, so the
+  library reads like a filing cabinet instead of a camera roll.
+- Sorting by last modified, oldest, or name.
+- Merge several documents into one; rename; long-press to multi-select and bulk delete.
 - Reorder, edit, or delete individual pages.
 
 **Reading**
@@ -33,8 +40,17 @@ no account, no server, and no upload.
   are cached per page and copy to the clipboard in one tap.
 
 **Exporting**
+- **Three quality presets** — Small, Balanced, High. Scanner apps are notorious for
+  producing PDFs too large to email; Small re-encodes at 1240px to fix that. The
+  resulting file size is shown after every export.
+- **PDFs are text-searchable** — recognised text is embedded as a transparent layer,
+  so Ctrl-F works in any reader.
 - Multi-page PDF at A4, US Letter, or sized to fit the scan.
 - Share to any app, print via AirPrint / Android printing, or save pages to the photo library as JPEGs.
+
+**Privacy**
+- Optional **Face ID / fingerprint / passcode lock** on launch and resume.
+- No account, no cloud, no upload, no ads, no watermark, no paywall.
 
 **Elsewhere**
 - Light and dark themes that follow the system by default.
@@ -120,6 +136,9 @@ src/
     ingest.ts       Capture URIs -> owned, rendered pages
     scanner.ts      Native scanner wrapper with camera/gallery fallbacks
     ocr.ts          On-device text recognition, with per-platform URI handling
+    lock.ts         Biometric capability probe and unlock prompt
+    idcard.ts       Lays two captures onto one printable sheet
+    merge.ts        Copies pages when combining documents
     strokes.ts      Signature stroke smoothing and path building
     annotate.ts     Burns signature strokes into the page image
     filters.ts      Colour matrices and how they compose
@@ -183,13 +202,30 @@ Treat the browser as a design tool. Anything you actually want to verify needs a
   orientations in one document are better served by A4 or US Letter, which letterbox each page.
 - **PDF generation holds the pages in memory** as base64 while building the HTML. Very large
   documents (many dozens of high-resolution pages) will be memory-hungry.
-- **OCR is read-only.** Text is extracted for reading and copying; exported PDFs are still image-only
-  and not text-searchable. Accuracy depends heavily on scan quality.
+- **The searchable PDF layer is not word-positioned.** The recogniser returns strings, not bounding
+  boxes, so the embedded text makes a PDF *findable* but you cannot select a word by tapping it in a
+  reader. Accuracy depends heavily on scan quality.
 - **OCR recognises Latin script.** Both platform engines default to Latin; other scripts would need a
   different recogniser.
 - **Signatures are flattened, not undoable** — see "How signing works" above.
 - Rendered pages are capped at 2400px on the long edge, which keeps small print legible while
   bounding memory use.
+
+## Why these features
+
+The feature set is deliberately shaped by what people complain about in the big scanner apps rather
+than by what those apps ship. The recurring gripes, from app-store reviews and Android/iOS forums,
+are: watermarks on free exports, basic export locked behind a paywall, aggressive ads and trial
+traps, **PDFs too big to email**, forced cloud accounts, scans lost when changing device, and
+**being unable to find a scan again months later**.
+
+Scanly answers those directly — no watermark, no ads, no account, nothing paywalled, explicit file
+size control, and content search. Some popular features are deliberately *not* here, because they
+are the bloat that the same reviews resent: cloud sync, business-card-to-contact, barcode scanning,
+and per-file cloud auto-upload rules.
+
+Genuinely useful things still missing: password-protected PDFs (needs a PDF library that can
+encrypt — `expo-print` cannot), drag-to-reorder pages, and manual crop adjustment after capture.
 
 ## Scripts
 

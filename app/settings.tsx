@@ -1,8 +1,8 @@
 import { Ionicons } from '@expo/vector-icons';
 import Constants from 'expo-constants';
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { Alert, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 
 import { AppBar } from '@/components/AppBar';
 import { Touchable } from '@/components/Pressable';
@@ -12,7 +12,8 @@ import { FILTERS, filterLabel } from '@/lib/filters';
 import { formatBytes, usedBytes } from '@/lib/files';
 import { isOcrAvailable } from '@/lib/ocr';
 import { isNativeScannerAvailable } from '@/lib/scanner';
-import type { FilterId, PageSize } from '@/lib/types';
+import { lockCapability } from '@/lib/lock';
+import { PDF_QUALITY, type FilterId, type PageSize, type PdfQuality } from '@/lib/types';
 import { useDocuments } from '@/store/documents';
 import { useSettings, type ThemePreference } from '@/store/settings';
 import { font, radius, space, useTheme } from '@/theme';
@@ -29,7 +30,7 @@ const PAGE_SIZE_LABELS: Record<PageSize, string> = {
   letter: 'US Letter',
 };
 
-type Sheet = 'theme' | 'filter' | 'pageSize' | null;
+type Sheet = 'theme' | 'filter' | 'pageSize' | 'quality' | null;
 
 export default function SettingsScreen() {
   const theme = useTheme();
@@ -37,7 +38,21 @@ export default function SettingsScreen() {
 
   const settings = useSettings();
   const documents = useDocuments((state) => state.documents);
+  const folders = useDocuments((state) => state.folders);
   const [sheet, setSheet] = useState<Sheet>(null);
+  const [lock, setLock] = useState<{ available: boolean; label: string } | null>(null);
+
+  // Asked once on mount: whether a screen lock exists is a device fact, not
+  // something that changes while this screen is open.
+  useEffect(() => {
+    let cancelled = false;
+    lockCapability().then((result) => {
+      if (!cancelled) setLock(result);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const pageCount = documents.reduce((total, document) => total + document.pages.length, 0);
   // Read once per render rather than watching the filesystem; it only changes
@@ -59,6 +74,15 @@ export default function SettingsScreen() {
         icon: settings.defaultFilter === entry.id ? 'radio-button-on' : 'radio-button-off',
         label: entry.label,
         onPress: () => settings.setDefaultFilter(entry.id as FilterId),
+      })),
+    },
+    quality: {
+      title: 'PDF quality',
+      actions: (Object.keys(PDF_QUALITY) as PdfQuality[]).map((key) => ({
+        icon: settings.pdfQuality === key ? 'radio-button-on' : 'radio-button-off',
+        label: PDF_QUALITY[key].label,
+        hint: PDF_QUALITY[key].hint,
+        onPress: () => settings.setPdfQuality(key),
       })),
     },
     pageSize: {
@@ -92,6 +116,46 @@ export default function SettingsScreen() {
             value={PAGE_SIZE_LABELS[settings.pageSize]}
             onPress={() => setSheet('pageSize')}
           />
+          <Row
+            icon="resize-outline"
+            label="PDF quality"
+            value={PDF_QUALITY[settings.pdfQuality].label}
+            onPress={() => setSheet('quality')}
+          />
+          <Toggle
+            icon="text-outline"
+            label="Read text automatically"
+            hint="Makes new scans searchable by their contents"
+            value={settings.autoRecognizeText}
+            onChange={settings.setAutoRecognizeText}
+          />
+          <Toggle
+            icon="sparkles-outline"
+            label="Name scans from their content"
+            hint="Uses the document's own heading instead of the date"
+            value={settings.smartNaming}
+            onChange={settings.setSmartNaming}
+          />
+        </Section>
+
+        <Section title="Privacy">
+          <Toggle
+            icon="lock-closed-outline"
+            label="Require unlock"
+            hint={lock?.available ? lock.label : (lock?.label ?? 'Checking…')}
+            value={settings.appLock}
+            disabled={lock !== null && !lock.available}
+            onChange={(next) => {
+              if (next && lock && !lock.available) {
+                Alert.alert(
+                  'No screen lock',
+                  'Set up a fingerprint, face unlock or passcode on this device first.'
+                );
+                return;
+              }
+              settings.setAppLock(next);
+            }}
+          />
         </Section>
 
         <Section title="Appearance">
@@ -105,6 +169,7 @@ export default function SettingsScreen() {
 
         <Section title="On this device">
           <Row icon="albums-outline" label="Documents" value={String(documents.length)} />
+          <Row icon="folder-outline" label="Folders" value={String(folders.length)} />
           <Row icon="layers-outline" label="Pages" value={String(pageCount)} />
           <Row icon="save-outline" label="Storage used" value={storage} />
           <Row
@@ -146,6 +211,44 @@ function Section({ title, children }: { title: string; children: React.ReactNode
     <View style={styles.section}>
       <Text style={[font.label, { color: theme.textMuted }]}>{title.toUpperCase()}</Text>
       <View style={[styles.card, { backgroundColor: theme.surface }]}>{children}</View>
+    </View>
+  );
+}
+
+function Toggle({
+  icon,
+  label,
+  hint,
+  value,
+  disabled,
+  onChange,
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+  label: string;
+  hint?: string;
+  value: boolean;
+  disabled?: boolean;
+  onChange: (value: boolean) => void;
+}) {
+  const theme = useTheme();
+  return (
+    <View style={styles.row}>
+      <Ionicons name={icon} size={19} color={theme.textMuted} />
+      <View style={styles.rowLabel}>
+        <Text style={[font.body, { color: disabled ? theme.textFaint : theme.text }]}>{label}</Text>
+        {!!hint && <Text style={[font.caption, { color: theme.textFaint }]}>{hint}</Text>}
+      </View>
+      <Switch
+        value={value}
+        onValueChange={onChange}
+        disabled={disabled}
+        // Without an explicit thumb colour Android falls back to its own
+        // accent, which reads as a second brand colour sitting in our UI.
+        trackColor={{ true: theme.accent, false: theme.border }}
+        thumbColor={theme.surface}
+        ios_backgroundColor={theme.border}
+        accessibilityLabel={label}
+      />
     </View>
   );
 }
@@ -195,6 +298,6 @@ const styles = StyleSheet.create({
     gap: space.md,
     paddingVertical: space.md,
   },
-  rowLabel: { flex: 1 },
+  rowLabel: { flex: 1, gap: 2 },
   footnote: { lineHeight: 18 },
 });

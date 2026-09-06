@@ -9,14 +9,22 @@ import {
   removePage,
   removeRendered,
 } from '@/lib/files';
-import type { FilterId, Page, Rotation, ScanDocument, SortKey } from '@/lib/types';
+import { createId } from '@/lib/ids';
+import type { FilterId, Folder, Page, Rotation, ScanDocument, SortKey } from '@/lib/types';
 
 /** A page whose files are already on disk but that the store hasn't adopted yet. */
 export type NewPage = Omit<Page, 'revision'>;
 
 type DocumentsState = {
   documents: ScanDocument[];
+  folders: Folder[];
   hydrated: boolean;
+
+  createFolder: (name: string) => string;
+  renameFolder: (folderId: string, name: string) => void;
+  /** Deleting a folder keeps its documents; they fall back to the top level. */
+  deleteFolder: (folderId: string) => void;
+  moveToFolder: (documentIds: string[], folderId: string | undefined) => void;
 
   /** The id is chosen by the caller because page files are written under it first. */
   createDocument: (id: string, name: string, pages: NewPage[]) => void;
@@ -82,7 +90,38 @@ export const useDocuments = create<DocumentsState>()(
   persist(
     (set, get) => ({
       documents: [],
+      folders: [],
       hydrated: false,
+
+      createFolder: (name) => {
+        const folder: Folder = { id: createId(), name: name.trim(), createdAt: Date.now() };
+        set((state) => ({ folders: [...state.folders, folder] }));
+        return folder.id;
+      },
+
+      renameFolder: (folderId, name) =>
+        set((state) => ({
+          folders: state.folders.map((folder) =>
+            folder.id === folderId ? { ...folder, name: name.trim() || folder.name } : folder
+          ),
+        })),
+
+      deleteFolder: (folderId) =>
+        set((state) => ({
+          folders: state.folders.filter((folder) => folder.id !== folderId),
+          documents: state.documents.map((document) =>
+            document.folderId === folderId ? { ...document, folderId: undefined } : document
+          ),
+        })),
+
+      moveToFolder: (documentIds, folderId) => {
+        const moving = new Set(documentIds);
+        set((state) => ({
+          documents: state.documents.map((document) =>
+            moving.has(document.id) ? { ...document, folderId, updatedAt: Date.now() } : document
+          ),
+        }));
+      },
 
       createDocument: (id, name, pages) => {
         const now = Date.now();
@@ -233,7 +272,7 @@ export const useDocuments = create<DocumentsState>()(
     {
       name: 'scanly.documents.v1',
       storage: createJSONStorage(() => AsyncStorage),
-      partialize: ({ documents }) => ({ documents }),
+      partialize: ({ documents, folders }) => ({ documents, folders }),
       onRehydrateStorage: () => (state) => {
         useDocuments.setState({ hydrated: true });
         pruneOrphans((state?.documents ?? []).map((document) => document.id));
@@ -256,8 +295,57 @@ export function sortDocuments(documents: ScanDocument[], sort: SortKey): ScanDoc
   }
 }
 
-export function searchDocuments(documents: ScanDocument[], query: string): ScanDocument[] {
+export type SearchHit = {
+  document: ScanDocument;
+  /** The page whose text matched, and a snippet around the match. */
+  match?: { pageNumber: number; snippet: string };
+};
+
+/** Characters of context shown either side of a match in the library list. */
+const SNIPPET_PAD = 34;
+
+function snippetAround(text: string, at: number, length: number): string {
+  const start = Math.max(0, at - SNIPPET_PAD);
+  const end = Math.min(text.length, at + length + SNIPPET_PAD);
+  const body = text.slice(start, end).replace(/\s+/g, ' ').trim();
+  return `${start > 0 ? '…' : ''}${body}${end < text.length ? '…' : ''}`;
+}
+
+/**
+ * Matches on the document's name first, then on any text recognised from its
+ * pages. Searching only filenames is the reason people cannot find a scan they
+ * took six months ago, so content is treated as a first-class index.
+ */
+export function searchDocuments(documents: ScanDocument[], query: string): SearchHit[] {
   const needle = query.trim().toLowerCase();
-  if (!needle) return documents;
-  return documents.filter((document) => document.name.toLowerCase().includes(needle));
+  if (!needle) return documents.map((document) => ({ document }));
+
+  const hits: SearchHit[] = [];
+
+  for (const document of documents) {
+    if (document.name.toLowerCase().includes(needle)) {
+      hits.push({ document });
+      continue;
+    }
+
+    for (const [index, page] of document.pages.entries()) {
+      const text = page.text;
+      if (!text) continue;
+      const at = text.toLowerCase().indexOf(needle);
+      if (at === -1) continue;
+
+      hits.push({
+        document,
+        match: { pageNumber: index + 1, snippet: snippetAround(text, at, needle.length) },
+      });
+      break;
+    }
+  }
+
+  return hits;
+}
+
+/** True once at least one page anywhere has been read, so search can say so. */
+export function hasAnyRecognizedText(documents: ScanDocument[]): boolean {
+  return documents.some((document) => document.pages.some((page) => !!page.text));
 }

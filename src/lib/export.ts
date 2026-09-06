@@ -2,7 +2,8 @@ import { Directory, File, Paths } from 'expo-file-system';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 
-import type { PageSize, ScanDocument } from './types';
+import { renderAtQuality } from './render';
+import { PDF_QUALITY, type PageSize, type PdfQuality, type ScanDocument } from './types';
 
 /** Page geometry in PostScript points (72 per inch), as expo-print expects. */
 const PAGE_SIZES: Record<Exclude<PageSize, 'fit'>, { width: number; height: number }> = {
@@ -29,12 +30,38 @@ function pageGeometry(document: ScanDocument, size: PageSize) {
   return { width: FIT_WIDTH, height: Math.round(FIT_WIDTH * ratio) };
 }
 
-async function buildHtml(document: ScanDocument, size: PageSize): Promise<string> {
+/** Keeps recognised text out of the visible layout but inside the PDF's text. */
+function textLayer(text: string | undefined): string {
+  if (!text) return '';
+  const escaped = text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+  return `<div class="ocr">${escaped}</div>`;
+}
+
+async function buildHtml(
+  document: ScanDocument,
+  size: PageSize,
+  quality: PdfQuality,
+  onProgress?: (done: number, total: number) => void
+): Promise<string> {
   // Each image is inlined: iOS' print WebView cannot load local file:// assets.
   const slides: string[] = [];
-  for (const page of document.pages) {
-    const base64 = await new File(page.uri).base64();
-    slides.push(`<section class="page"><img src="data:image/jpeg;base64,${base64}" /></section>`);
+
+  for (const [index, page] of document.pages.entries()) {
+    const preset = PDF_QUALITY[quality];
+    // Re-encoding here rather than shipping the master is what keeps a ten-page
+    // scan inside an email attachment limit.
+    const base64 =
+      quality === 'high'
+        ? await new File(page.uri).base64()
+        : (await renderAtQuality(page.uri, preset.maxEdge, preset.quality)).base64;
+
+    slides.push(
+      `<section class="page"><img src="data:image/jpeg;base64,${base64}" />${textLayer(page.text)}</section>`
+    );
+    onProgress?.(index + 1, document.pages.length);
   }
 
   const padding = size === 'fit' ? 0 : 24;
@@ -61,6 +88,23 @@ async function buildHtml(document: ScanDocument, size: PageSize): Promise<string
       }
       .page:last-child { page-break-after: auto; break-after: auto; }
       img { max-width: 100%; max-height: 100%; object-fit: contain; display: block; }
+      /*
+       * Recognised text, rendered transparently behind the image. The printer
+       * still writes it into the PDF's text layer, so the exported file is
+       * searchable in any reader. Words are not positioned over their pixels —
+       * the recogniser returns strings, not boxes — so this makes a PDF
+       * findable, not selectable word-by-word.
+       */
+      .ocr {
+        position: absolute;
+        top: 0; left: 0; right: 0; bottom: 0;
+        color: transparent;
+        font-size: 6px;
+        line-height: 1.1;
+        overflow: hidden;
+        z-index: -1;
+      }
+      .page { position: relative; }
     </style>
   </head>
   <body>${slides.join('')}</body>
@@ -72,12 +116,19 @@ async function buildHtml(document: ScanDocument, size: PageSize): Promise<string
  * The file is named after the document so the share sheet and the receiving
  * app show something meaningful rather than a random print id.
  */
-export async function exportPdf(document: ScanDocument, size: PageSize): Promise<string> {
+export type ExportResult = { uri: string; bytes: number };
+
+export async function exportPdf(
+  document: ScanDocument,
+  size: PageSize,
+  quality: PdfQuality,
+  onProgress?: (done: number, total: number) => void
+): Promise<ExportResult> {
   if (document.pages.length === 0) {
     throw new Error('This document has no pages to export.');
   }
 
-  const html = await buildHtml(document, size);
+  const html = await buildHtml(document, size, quality, onProgress);
   const geometry = pageGeometry(document, size);
   const { uri } = await Print.printToFileAsync({ html, ...geometry });
 
@@ -88,12 +139,18 @@ export async function exportPdf(document: ScanDocument, size: PageSize): Promise
   if (destination.exists) destination.delete();
   await new File(uri).move(destination);
 
-  return destination.uri;
+  return { uri: destination.uri, bytes: destination.size };
 }
 
-export async function sharePdf(document: ScanDocument, size: PageSize): Promise<void> {
-  const uri = await exportPdf(document, size);
-  await share(uri, 'application/pdf', 'com.adobe.pdf', `Share ${document.name}`);
+export async function sharePdf(
+  document: ScanDocument,
+  size: PageSize,
+  quality: PdfQuality,
+  onProgress?: (done: number, total: number) => void
+): Promise<ExportResult> {
+  const result = await exportPdf(document, size, quality, onProgress);
+  await share(result.uri, 'application/pdf', 'com.adobe.pdf', `Share ${document.name}`);
+  return result;
 }
 
 export async function share(
@@ -142,7 +199,11 @@ export async function saveToGallery(document: ScanDocument): Promise<number> {
   return document.pages.length;
 }
 
-export async function printDocument(document: ScanDocument, size: PageSize): Promise<void> {
-  const uri = await exportPdf(document, size);
+export async function printDocument(
+  document: ScanDocument,
+  size: PageSize,
+  quality: PdfQuality
+): Promise<void> {
+  const { uri } = await exportPdf(document, size, quality);
   await Print.printAsync({ uri });
 }

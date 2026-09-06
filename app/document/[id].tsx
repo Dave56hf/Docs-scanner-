@@ -15,6 +15,7 @@ import { ActionSheet } from '@/components/Sheet';
 import { useAsyncTask } from '@/hooks/useAsyncTask';
 import { useCapture } from '@/hooks/useCapture';
 import { printDocument, saveToGallery, sharePdf } from '@/lib/export';
+import { formatBytes } from '@/lib/files';
 import { filterLabel } from '@/lib/filters';
 import { useDocuments } from '@/store/documents';
 import { useSettings } from '@/store/settings';
@@ -35,6 +36,7 @@ export default function DocumentScreen() {
   const deletePage = useDocuments((state) => state.deletePage);
   const movePage = useDocuments((state) => state.movePage);
   const pageSize = useSettings((state) => state.pageSize);
+  const pdfQuality = useSettings((state) => state.pdfQuality);
 
   const { busy, run } = useAsyncTask();
   const capture = useCapture(run);
@@ -126,7 +128,12 @@ export default function DocumentScreen() {
           icon="share-outline"
           label="Share PDF"
           primary
-          onPress={() => run('Building PDF…', () => sharePdf(document, pageSize))}
+          onPress={() =>
+            run('Building PDF…', async () => {
+              const { bytes } = await sharePdf(document, pageSize, pdfQuality);
+              Alert.alert('PDF ready', `${document.name}.pdf · ${formatBytes(bytes)}`);
+            })
+          }
         />
         <BarButton icon="ellipsis-horizontal" label="More" onPress={() => setExportSheet(true)} />
       </View>
@@ -163,7 +170,7 @@ export default function DocumentScreen() {
           {
             icon: 'print-outline',
             label: 'Print',
-            onPress: () => run('Preparing…', () => printDocument(document, pageSize)),
+            onPress: () => run('Preparing…', () => printDocument(document, pageSize, pdfQuality)),
           },
           {
             icon: 'download-outline',

@@ -56,6 +56,34 @@ export function writeRendered(
 }
 
 /**
+ * Copies an existing page's files into another document's directory under a
+ * fresh id. Merging has to duplicate the bytes rather than share them: two
+ * documents pointing at one file would mean deleting either destroys both.
+ */
+export async function copyPageInto(
+  targetDocumentId: string,
+  newPageId: string,
+  sourceUri: string,
+  renderedUri: string
+): Promise<{ sourceUri: string; uri: string }> {
+  const dir = ensureDir(documentDir(targetDocumentId));
+
+  const master = new File(dir, `${newPageId}.jpg`);
+  if (master.exists) master.delete();
+  await new File(sourceUri).copy(master);
+
+  // An unedited page has no separate rendering; both URIs point at the master.
+  if (renderedUri === sourceUri) {
+    return { sourceUri: master.uri, uri: master.uri };
+  }
+
+  const rendered = new File(dir, `${newPageId}-r0.jpg`);
+  if (rendered.exists) rendered.delete();
+  await new File(renderedUri).copy(rendered);
+  return { sourceUri: master.uri, uri: rendered.uri };
+}
+
+/**
  * Writes a new master capture. Signing replaces the master rather than adding
  * another derived layer, because a signature is part of the document — not a
  * setting you toggle. The revision keeps the filename distinct from the old

@@ -34,8 +34,32 @@ export type ScanDocument = {
   pages: Page[];
   createdAt: number;
   updatedAt: number;
+  /** Undefined means the document sits at the top level, outside any folder. */
+  folderId?: string;
+};
+
+export type Folder = {
+  id: string;
+  name: string;
+  createdAt: number;
 };
 
 export type SortKey = 'recent' | 'oldest' | 'name';
 
 export type PageSize = 'fit' | 'a4' | 'letter';
+
+/**
+ * Export presets. Scanned pages are photographs, so the difference between
+ * these is mostly resolution and JPEG quality — which is what decides whether
+ * a ten-page scan fits in an email.
+ */
+export type PdfQuality = 'small' | 'balanced' | 'high';
+
+export const PDF_QUALITY: Record<
+  PdfQuality,
+  { label: string; hint: string; maxEdge: number; quality: number }
+> = {
+  small: { label: 'Small', hint: 'Best for email — lowest quality', maxEdge: 1240, quality: 55 },
+  balanced: { label: 'Balanced', hint: 'Readable text at a sane size', maxEdge: 1800, quality: 75 },
+  high: { label: 'High', hint: 'Full detail — largest files', maxEdge: 2400, quality: 92 },
+};

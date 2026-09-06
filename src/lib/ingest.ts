@@ -65,6 +65,32 @@ export function discardPages(pages: NewPage[]): void {
   }
 }
 
+/**
+ * Picks a document title out of recognised text.
+ *
+ * The first line of a scan is almost always its heading — "INVOICE",
+ * "Tenancy Agreement", a letterhead — which is far more findable six months
+ * later than a timestamp. Lines that are too short to be meaningful, or that
+ * are mostly digits (reference numbers, dates), are skipped.
+ */
+export function titleFromText(text: string): string | undefined {
+  const candidates = text
+    .split('\n')
+    .map((line) => line.replace(/\s+/g, ' ').trim())
+    .filter((line) => line.length >= 4 && line.length <= 60);
+
+  for (const line of candidates) {
+    const letters = line.replace(/[^\p{L}]/gu, '').length;
+    // Demand that the line is mostly letters, so "04/09/2026" and "NW-2026-0418"
+    // don't become the document's name.
+    if (letters >= 4 && letters / line.length >= 0.55) {
+      return line.length > 48 ? `${line.slice(0, 48).trimEnd()}…` : line;
+    }
+  }
+
+  return undefined;
+}
+
 /** "Scan 6 Sep 2026, 14:32" — a name the user can find again without typing one. */
 export function defaultDocumentName(date = new Date()): string {
   const day = date.toLocaleDateString(undefined, {
